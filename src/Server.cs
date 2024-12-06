@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
 
 // You can use print statements as follows for debugging, they'll be visible when running tests.
 Console.WriteLine("Logs from your program will appear here!");
@@ -19,9 +20,42 @@ while (true) {
 
 async Task HandleRequestAsync(Socket socket)
 {
-   //var buffer = new byte[1024];
-    //var bytesRead = await socket.ReceiveAsync(buffer, SocketFlags.None);
-    await socket.SendAsync(new ArraySegment<byte>("+PONG\r\n"u8.ToArray()), SocketFlags.None);
+    try
+    {
+        var buffer = new byte[1024];
+        while (true)
+        {
+            var bytesRead = await socket.ReceiveAsync(buffer, SocketFlags.None);
+            if (bytesRead == 0)
+                break;
+            
+            var request = Encoding.UTF8.GetString(buffer, 0, bytesRead);
+            if (request.StartsWith("*1\r\n$4\r\nPING\r\n"))
+            {
+                // RESP-compliant response for PING
+                var response = new ArraySegment<byte>("+PONG\r\n"u8.ToArray());
+                await socket.SendAsync(response, SocketFlags.None);
+            }
+            else
+            {
+                // RESP error for unknown commands
+                var errorResponse = new ArraySegment<byte>("-ERR unknown command\r\n"u8.ToArray());
+                await socket.SendAsync(errorResponse, SocketFlags.None);
+            }
+            
+        }
+
+    }
+    catch (Exception e)
+    {
+        Console.WriteLine(e);
+        throw;
+    }
+    finally
+    {
+        socket.Close();
+    }
+    
 }
 
 
